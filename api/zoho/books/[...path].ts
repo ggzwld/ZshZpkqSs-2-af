@@ -1,5 +1,6 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import serverless from "serverless-http";
-import { createServer } from "../../../../server/index.js";
+import { createServer } from "../../../server/index.js";
 
 const app = serverless(createServer());
 
