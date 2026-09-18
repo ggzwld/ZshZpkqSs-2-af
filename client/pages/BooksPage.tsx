@@ -96,7 +96,7 @@ const BooksPage = () => {
       );
       const body = await readApiResponse<{ url?: string }>(response, "/api/zoho/books/connect");
       if (!body.url) throw new Error("Books API did not return an authorization URL");
-      setAuthorizationUrl(body.url);
+      window.location.assign(body.url);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to connect Zoho Books");
     } finally {
