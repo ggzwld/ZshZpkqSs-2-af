@@ -14,6 +14,30 @@ const getToken = async () => {
   return data.session?.access_token || null;
 };
 
+const readApiResponse = async <T,>(response: Response, endpoint: string): Promise<T> => {
+  const contentType = response.headers.get("content-type") || "unknown";
+  const rawBody = await response.text();
+  let body: { error?: string } | T;
+
+  try {
+    body = rawBody ? JSON.parse(rawBody) : ({} as T);
+  } catch {
+    const preview = rawBody.replace(/\s+/g, " ").trim().slice(0, 180);
+    throw new Error(
+      `Books API returned non-JSON from ${endpoint} (HTTP ${response.status}, ${contentType}). Response: ${preview || "<empty>"}`,
+    );
+  }
+
+  if (!response.ok) {
+    const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+      ? body.error
+      : `HTTP ${response.status}`;
+    throw new Error(`Books API request failed at ${endpoint}: ${message}`);
+  }
+
+  return body as T;
+};
+
 const BooksPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -34,15 +58,13 @@ const BooksPage = () => {
     }
 
     const headers = { Authorization: `Bearer ${token}` };
-    const statusResponse = await fetch("/api/zoho/books/status", { headers });
-    const statusBody = await statusResponse.json();
-    if (!statusResponse.ok) throw new Error(statusBody.error || "Unable to load Books status");
+    const statusEndpoint = "/api/zoho/books/status";
+    const statusBody = await readApiResponse<Status>(await fetch(statusEndpoint, { headers }), statusEndpoint);
     setStatus(statusBody);
 
     if (statusBody.connected) {
-      const dataResponse = await fetch("/api/zoho/books/data", { headers });
-      const dataBody = await dataResponse.json();
-      if (!dataResponse.ok) throw new Error(dataBody.error || "Unable to load Zoho Books data");
+      const dataEndpoint = "/api/zoho/books/data";
+      const dataBody = await readApiResponse<BooksData>(await fetch(dataEndpoint, { headers }), dataEndpoint);
       setData(dataBody);
     } else {
       setData(null);
@@ -72,8 +94,8 @@ const BooksPage = () => {
         `/api/zoho/books/connect?${new URLSearchParams({ returnTo })}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      const body = await response.json();
-      if (!response.ok || !body.url) throw new Error(body.error || "Unable to start Zoho authorization");
+      const body = await readApiResponse<{ url?: string }>(response, "/api/zoho/books/connect");
+      if (!body.url) throw new Error("Books API did not return an authorization URL");
       setAuthorizationUrl(body.url);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to connect Zoho Books");
@@ -86,9 +108,8 @@ const BooksPage = () => {
     setBusy(true);
     try {
       const token = await getToken();
-      const response = await fetch("/api/zoho/books/disconnect", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Unable to disconnect Zoho Books");
+      const endpoint = "/api/zoho/books/disconnect";
+      await readApiResponse<{ connected: false }>(await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${token}` } }), endpoint);
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to disconnect Zoho Books");

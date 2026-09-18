@@ -634,6 +634,14 @@ function createServer() {
   app2.get("/api/zoho/books/status", getZohoBooksStatus);
   app2.get("/api/zoho/books/data", getZohoBooksData);
   app2.post("/api/zoho/books/disconnect", disconnectZohoBooks);
+  app2.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API endpoint not found", path: _req.path });
+  });
+  app2.use((error, _req, res, _next) => {
+    console.error("[api] Unhandled request error", error);
+    if (res.headersSent) return;
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unhandled API error" });
+  });
   return app2;
 }
 const app = createServer();
